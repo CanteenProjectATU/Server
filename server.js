@@ -31,14 +31,25 @@ mongoose.connect('mongodb://0.0.0.0:27017/Y3_Canteen_Project_Temp_Test') // This
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
-// Schema for Menu
-const menuItemSchema = new mongoose.Schema({
+// Schema for menus
+const menusSchema = new mongoose.Schema({
     name: String,
     allergenInfo: String,
     price: Number,
 });
 
-const MenuItem = mongoose.model('Menu', menuItemSchema, 'Menu');
+// Schema for recipes
+const recipesSchema = new mongoose.Schema({
+    name: String,
+    allergenInfo: String,
+    recipe: String
+});
+
+// Model for menus
+const menusModel = mongoose.model('menus', menusSchema);
+
+// Model for recipes
+const recipesModel = mongoose.model('recipes', recipesSchema);
 
 // Route point for the home page
 app.get('/', (req, res) => {
@@ -50,9 +61,21 @@ app.get('/', (req, res) => {
 app.get('/menu', async (req, res) => {
     
     try {
-        const menuItems = await MenuItem.find({});
+        const menuItems = await menusModel.find({});
         console.log(menuItems);
         res.json(menuItems);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Finds all of the recipes in the Recipe collection of the database and sends them as a response to the client.
+app.get('/recipes', async (req, res) => {
+
+    try {
+        const recipes = await recipesModel.find({});
+        console.log(recipes);
+        res.json(recipes);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

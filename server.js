@@ -31,6 +31,9 @@ mongoose.connect('mongodb://0.0.0.0:27017/Y3_Canteen_Project_Temp_Test') // This
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
+
+// Define schemas for MongoDB collections
+
 // Schema for menus
 const menusSchema = new mongoose.Schema({
     name: String,
@@ -45,11 +48,16 @@ const recipesSchema = new mongoose.Schema({
     recipe: String
 });
 
-// Model for menus
-const menusModel = mongoose.model('menus', menusSchema);
+// Schema for misc (collection with miscellaneous documents)
+const miscSchema = new mongoose.Schema({
+    documentName: String,
+    information: String
+});
 
-// Model for recipes
-const recipesModel = mongoose.model('recipes', recipesSchema);
+// Create models based on schemas
+const menusModel = mongoose.model('menus', menusSchema); // Model for menus
+const recipesModel = mongoose.model('recipes', recipesSchema); // Model for recipes
+const miscModel = mongoose.model('misc', recipesSchema, 'misc'); // Model for misc
 
 // Route point for the home page
 app.get('/', (req, res) => {
@@ -57,7 +65,7 @@ app.get('/', (req, res) => {
 });
 
 
-// Finds all of the menu items in the Menu collection of the database and sends them as a response to the client.
+// Route to get all of the menu items in the menu collection of the database and sends them as a response to the client.
 app.get('/menu', async (req, res) => {
     
     try {
@@ -69,7 +77,7 @@ app.get('/menu', async (req, res) => {
     }
 });
 
-// Finds all of the recipes in the Recipe collection of the database and sends them as a response to the client.
+// Route to get all of the recipes in the recipe collection of the database and sends them as a response to the client.
 app.get('/recipes', async (req, res) => {
 
     try {
@@ -81,6 +89,32 @@ app.get('/recipes', async (req, res) => {
     }
 });
 
+// Route to get the food pantry information from the misc collection of the database and sends it as a response to the client.
+app.get('/food_pantry', async (req, res) => {
+    getAndSendMiscDocument(res, "FoodPantry")
+});
+
+// Route to get the opening hours information from the misc collection of the database and sends it as a response to the client.
+app.get('/opening_hours', (req, res) => {
+    getAndSendMiscDocument(res, "OpeningHours");
+});
+
+// Function to find and send miscellaneous documents from the misc collection
+async function getAndSendMiscDocument(res, selectedDocumentName){
+    try {
+        // Query to find document with the selectedDocumentName
+        const resultingDocument = await miscModel.findOne({ documentName: selectedDocumentName });
+        
+        if (!resultingDocument) {
+            return res.status(404).json({ message: "Sorry, this information could not be found" });
+        }
+
+        console.log(resultingDocument);
+        res.json(resultingDocument);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+}
 
 // Listen on the selected port
 app.listen(port, () => {

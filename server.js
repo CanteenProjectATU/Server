@@ -64,7 +64,7 @@ const openingHoursSchema = new mongoose.Schema({
 // Create models based on schemas
 const menusModel = mongoose.model('menus', menusSchema); // Model for menus
 const recipesModel = mongoose.model('recipes', recipesSchema); // Model for recipes
-const miscModel = mongoose.model('misc', recipesSchema, 'misc'); // Model for misc
+const miscModel = mongoose.model('misc', miscSchema, 'misc'); // Model for misc
 const openingHoursModel = mongoose.model('openingHours', openingHoursSchema, 'openingHours'); // Model for openingHours
 
 // Route point for the home page

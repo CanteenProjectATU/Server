@@ -54,10 +54,18 @@ const miscSchema = new mongoose.Schema({
     information: String
 });
 
+// Schema for openingHours
+const openingHoursSchema = new mongoose.Schema({
+    day: String,
+    openingTime: String,
+    closingTime: String
+});
+
 // Create models based on schemas
 const menusModel = mongoose.model('menus', menusSchema); // Model for menus
 const recipesModel = mongoose.model('recipes', recipesSchema); // Model for recipes
 const miscModel = mongoose.model('misc', recipesSchema, 'misc'); // Model for misc
+const openingHoursModel = mongoose.model('openingHours', openingHoursSchema, 'openingHours'); // Model for openingHours
 
 // Route point for the home page
 app.get('/', (req, res) => {
@@ -65,7 +73,7 @@ app.get('/', (req, res) => {
 });
 
 
-// Route to get all of the menu items in the menu collection of the database and sends them as a response to the client.
+// Route to get all of the menu items from the menu collection of the database and sends them as a response to the client.
 app.get('/menu', async (req, res) => {
     
     try {
@@ -77,7 +85,7 @@ app.get('/menu', async (req, res) => {
     }
 });
 
-// Route to get all of the recipes in the recipe collection of the database and sends them as a response to the client.
+// Route to get all of the recipes from the recipe collection of the database and sends them as a response to the client.
 app.get('/recipes', async (req, res) => {
 
     try {
@@ -94,9 +102,15 @@ app.get('/food_pantry', async (req, res) => {
     getAndSendMiscDocument(res, "FoodPantry")
 });
 
-// Route to get the opening hours information from the misc collection of the database and sends it as a response to the client.
-app.get('/opening_hours', (req, res) => {
-    getAndSendMiscDocument(res, "OpeningHours");
+// Route to get the opening hours from the openingHours collection of the database and sends it as a response to the client.
+app.get('/opening_hours', async (req, res) => {
+    try {
+        const openingHours = await openingHoursModel.find({});
+        console.log(openingHours);
+        res.json(openingHours);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 });
 
 // Function to find and send miscellaneous documents from the misc collection

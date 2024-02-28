@@ -76,56 +76,60 @@ app.get('/', (req, res) => {
 // Route to get all of the menu items from the menu collection of the database and sends them as a response to the client.
 app.get('/menu', async (req, res) => {
     
-    try {
-        const menuItems = await menusModel.find({});
-        console.log(menuItems);
-        res.json(menuItems);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+    getAndSendAllDocumentsInCollection(res, menusModel);
 });
 
 // Route to get all of the recipes from the recipe collection of the database and sends them as a response to the client.
 app.get('/recipes', async (req, res) => {
 
-    try {
-        const recipes = await recipesModel.find({});
-        console.log(recipes);
-        res.json(recipes);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+    getAndSendAllDocumentsInCollection(res, recipesModel);
 });
 
 // Route to get the food pantry information from the misc collection of the database and sends it as a response to the client.
 app.get('/food_pantry', async (req, res) => {
-    getAndSendMiscDocument(res, "FoodPantry")
+    getAndSendSpecificDocument(res, miscModel, "FoodPantry")
 });
 
 // Route to get the opening hours from the openingHours collection of the database and sends it as a response to the client.
 app.get('/opening_hours', async (req, res) => {
-    try {
-        const openingHours = await openingHoursModel.find({});
-        console.log(openingHours);
-        res.json(openingHours);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+
+    getAndSendAllDocumentsInCollection(res, openingHoursModel);
 });
 
-// Function to find and send miscellaneous documents from the misc collection
-async function getAndSendMiscDocument(res, selectedDocumentName){
-    try {
+
+// Function to find and send all documents from a given collection
+async function getAndSendAllDocumentsInCollection(res, model)
+{
+    try 
+    {
+        const resultingDocuments = await model.find({});
+        console.log(resultingDocuments);
+        res.json(resultingDocuments);
+    } 
+    catch (error) 
+    {
+        res.status(500).json({ message: error.message });
+    }
+}
+
+// Function to find and send documents from a given collection
+async function getAndSendSpecificDocument(res, model, selectedDocumentName)
+{
+    try 
+    {
         // Query to find document with the selectedDocumentName
-        const resultingDocument = await miscModel.findOne({ documentName: selectedDocumentName });
+        const resultingDocument = await model.findOne({ documentName: selectedDocumentName });
         
-        if (!resultingDocument) {
+        if (!resultingDocument) 
+        {
             return res.status(404).json({ message: "Sorry, this information could not be found" });
         }
 
         console.log(resultingDocument);
         res.json(resultingDocument);
-    } catch (error) {
+    } 
+    catch (error) 
+    {
         res.status(500).json({ message: error.message });
     }
 }

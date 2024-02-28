@@ -73,6 +73,8 @@ app.get('/', (req, res) => {
 });
 
 
+// GET Methods
+
 // Route to get all of the menu items from the menu collection of the database and sends them as a response to the client.
 app.get('/menu', async (req, res) => {
     
@@ -96,6 +98,38 @@ app.get('/opening_hours', async (req, res) => {
     getAndSendAllDocumentsInCollection(res, openingHoursModel);
 });
 
+
+// POST Methods
+
+// Route to add a new menu item to the menu collection
+app.post('/menu', async (req, res) => {
+
+        // Extracting food name, allergy info, and price from the request body
+        const { name, allergenInfo, price } = req.body;
+
+        // Checks if the submitted data is valid
+        if(name.length > 0 && allergenInfo.length > 0 && isValidPrice(price))
+        {
+            let newPrice = Number(price).toFixed(2); // Ensures that there are not more than two numbers after the decimal point
+
+            // Create a new menu item object
+            const newDocument = new menusModel({
+                name: name,
+                allergenInfo: allergenInfo,
+                price: newPrice
+            });
+
+            addDocumentToCollection(res, newDocument);
+        }
+        else
+        {
+            // TODO: Provide more informative error messages
+            res.status(201).json({ message: "Invalid entry" }); 
+        }
+});
+
+
+// Other Methods
 
 // Function to find and send all documents from a given collection
 async function getAndSendAllDocumentsInCollection(res, model)
@@ -132,6 +166,29 @@ async function getAndSendSpecificDocument(res, model, selectedDocumentName)
     {
         res.status(500).json({ message: error.message });
     }
+}
+
+// Adds a document to a collection and sends a response to the client with the result of the attempt
+async function addDocumentToCollection(res, newDocument)
+{
+    try 
+    {
+        const document = await newDocument.save();
+
+        console.log(document);
+        res.status(201).json(document); // Return the newly created document as JSON response
+    } 
+    catch (error) 
+    {
+        res.status(400).json({ message: error.message }); // If there is an error, return error message
+    }
+}
+
+// Function to validate price
+function isValidPrice(price)
+{
+    // Check if price is a valid number and greater than or equal to 0
+    return !isNaN(parseFloat(price)) && isFinite(price) && Number(price) >= 0;
 }
 
 // Listen on the selected port

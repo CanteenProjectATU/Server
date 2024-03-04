@@ -128,6 +128,31 @@ app.post('/menu', async (req, res) => {
         }
 });
 
+// Route to add a new recipe to the recipe collection
+app.post('/recipes', async (req, res) => {
+
+    // Extracting food name, allergy info, and recipe from the request body
+    const { name, allergenInfo, recipe } = req.body;
+
+    // Checks if the submitted data is valid
+    if(name.length > 0 && allergenInfo.length > 0 && recipe.length > 0)
+    {
+        // Create a new recipe object
+        const newDocument = new recipesModel({
+            name: name,
+            allergenInfo: allergenInfo,
+            recipe: recipe
+        });
+
+        addDocumentToCollection(res, newDocument);
+    }
+    else
+    {
+        // TODO: Provide more informative error messages
+        res.status(201).json({ message: "Invalid entry" }); 
+    }
+});
+
 
 // Other Methods
 

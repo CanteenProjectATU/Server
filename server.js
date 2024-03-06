@@ -67,6 +67,8 @@ const recipesModel = mongoose.model('recipes', recipesSchema); // Model for reci
 const miscModel = mongoose.model('misc', miscSchema, 'misc'); // Model for misc
 const openingHoursModel = mongoose.model('openingHours', openingHoursSchema, 'openingHours'); // Model for openingHours
 
+let foodPantryDocumentName = "FoodPantry";
+
 // Route point for the home page
 app.get('/', (req, res) => {
     res.send('Home Page');
@@ -89,7 +91,7 @@ app.get('/recipes', async (req, res) => {
 
 // Route to get the food pantry information from the misc collection of the database and sends it as a response to the client.
 app.get('/food_pantry', async (req, res) => {
-    getAndSendSpecificDocument(res, miscModel, "FoodPantry")
+    getAndSendSpecificDocument(res, miscModel, foodPantryDocumentName)
 });
 
 // Route to get the opening hours from the openingHours collection of the database and sends it as a response to the client.
@@ -108,7 +110,7 @@ app.post('/menu', async (req, res) => {
         const { name, allergenInfo, price } = req.body;
 
         // Checks if the submitted data is valid
-        if(name.length > 0 && allergenInfo.length > 0 && isValidPrice(price))
+        if(stringNotEmpty(name) > 0 && stringNotEmpty(allergenInfo) > 0 && isValidPrice(price))
         {
             let newPrice = Number(price).toFixed(2); // Ensures that there are not more than two numbers after the decimal point
 
@@ -135,7 +137,7 @@ app.post('/recipes', async (req, res) => {
     const { name, allergenInfo, recipe } = req.body;
 
     // Checks if the submitted data is valid
-    if(name.length > 0 && allergenInfo.length > 0 && recipe.length > 0)
+    if(stringNotEmpty(name) > 0 && stringNotEmpty(allergenInfo) > 0 && stringNotEmpty(recipe.length))
     {
         // Create a new recipe object
         const newDocument = new recipesModel({
@@ -151,6 +153,26 @@ app.post('/recipes', async (req, res) => {
         // TODO: Provide more informative error messages
         res.status(201).json({ message: "Invalid entry" }); 
     }
+});
+
+
+// PUT Methods
+
+// Route to update the food pantry document in the misc collection
+app.put('/food_pantry', async (req, res) => {
+
+    let newInformation = req.body.information;
+
+    if(stringNotEmpty(newInformation))
+    {
+        let document = await findDocumentInCollection(miscModel, "documentName", foodPantryDocumentName);
+        updateSingleValueOfDocument(res, document, "information", newInformation);
+    }
+    else
+    {
+        res.status(201).json({ message: "Information can not be empty" }); 
+    }
+    
 });
 
 
@@ -215,6 +237,53 @@ function isValidPrice(price)
     // Check if price is a valid number and greater than or equal to 0
     return !isNaN(parseFloat(price)) && isFinite(price) && Number(price) >= 0;
 }
+
+function stringNotEmpty(string)
+{
+    return string.length > 0;
+}
+
+async function findDocumentInCollection(model, key, value)
+{
+     // Create an object with the key variable as the property name
+     let query = {};
+     query[key] = value;
+ 
+     try 
+     {
+         // Find the document by documentName
+         const document = await model.findOne(query);
+         
+         if (!document) 
+         {
+             return res.status(404).json({ message: "Document not found" });
+         }
+
+         return document;
+     } 
+     catch (error) 
+     {
+         res.status(500).json({ message: error.message });
+     }
+}
+
+async function updateSingleValueOfDocument(res, documentToUpdate, keyOfValueToUpdate, newValue)
+{
+    try 
+    {
+        // Update the information
+        documentToUpdate[keyOfValueToUpdate] = newValue;
+        await documentToUpdate.save();
+
+        console.log("Document updated:", documentToUpdate);
+        res.status(200).json({ message: "Document updated successfully" });
+    } 
+    catch (error) 
+    {
+        res.status(500).json({ message: error.message });
+    }
+}
+
 
 // Listen on the selected port
 app.listen(port, () => {

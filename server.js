@@ -69,35 +69,30 @@ const openingHoursModel = mongoose.model('openingHours', openingHoursSchema, 'op
 
 let foodPantryDocumentName = "FoodPantry";
 
-// Route point for the home page
-app.get('/', (req, res) => {
-    res.send('Home Page');
-});
-
-
 // GET Methods
 
 // Route to get all of the menu items from the menu collection of the database and sends them as a response to the client.
 app.get('/menu', async (req, res) => {
-    
-    getAndSendAllDocumentsInCollection(res, menusModel);
+
+    respondToClient(res, await getAllDocumentsInCollection(menusModel));
 });
 
 // Route to get all of the recipes from the recipe collection of the database and sends them as a response to the client.
 app.get('/recipes', async (req, res) => {
 
-    getAndSendAllDocumentsInCollection(res, recipesModel);
+    respondToClient(res, await getAllDocumentsInCollection(recipesModel));
 });
 
 // Route to get the food pantry information from the misc collection of the database and sends it as a response to the client.
 app.get('/food_pantry', async (req, res) => {
-    getAndSendSpecificDocument(res, miscModel, foodPantryDocumentName)
+
+    respondToClient(res, await getSpecificDocument(miscModel, foodPantryDocumentName));
 });
 
 // Route to get the opening hours from the openingHours collection of the database and sends it as a response to the client.
 app.get('/opening_hours', async (req, res) => {
 
-    getAndSendAllDocumentsInCollection(res, openingHoursModel);
+    respondToClient(res, await getAllDocumentsInCollection(openingHoursModel));
 });
 
 
@@ -110,7 +105,7 @@ app.post('/menu', async (req, res) => {
         const { name, allergenInfo, price } = req.body;
 
         // Checks if the submitted data is valid
-        if(stringNotEmpty(name) > 0 && stringNotEmpty(allergenInfo) > 0 && isValidPrice(price))
+        if(stringNotEmpty(name) && stringNotEmpty(allergenInfo) && isValidPrice(price))
         {
             let newPrice = Number(price).toFixed(2); // Ensures that there are not more than two numbers after the decimal point
 
@@ -121,12 +116,12 @@ app.post('/menu', async (req, res) => {
                 price: newPrice
             });
 
-            addDocumentToCollection(res, newDocument);
+            respondToClient(res, await addDocumentToCollection(newDocument));
         }
         else
         {
             // TODO: Provide more informative error messages
-            res.status(201).json({ message: "Invalid entry" }); 
+            respondToClient(res, createResponseForClient(200, "Invalid entry"));
         }
 });
 
@@ -137,7 +132,7 @@ app.post('/recipes', async (req, res) => {
     const { name, allergenInfo, recipe } = req.body;
 
     // Checks if the submitted data is valid
-    if(stringNotEmpty(name) > 0 && stringNotEmpty(allergenInfo) > 0 && stringNotEmpty(recipe.length))
+    if(stringNotEmpty(name) && stringNotEmpty(allergenInfo) && stringNotEmpty(recipe))
     {
         // Create a new recipe object
         const newDocument = new recipesModel({
@@ -146,12 +141,14 @@ app.post('/recipes', async (req, res) => {
             recipe: recipe
         });
 
-        addDocumentToCollection(res, newDocument);
+        //addDocumentToCollection(newDocument);
+        let responseForClient = await addDocumentToCollection(newDocument);
+        respondToClient(res, responseForClient);
     }
     else
     {
         // TODO: Provide more informative error messages
-        res.status(201).json({ message: "Invalid entry" }); 
+        respondToClient(res, createResponseForClient(200, "Invalid entry"));
     }
 });
 
@@ -165,12 +162,20 @@ app.put('/food_pantry', async (req, res) => {
 
     if(stringNotEmpty(newInformation))
     {
-        let document = await findDocumentInCollection(miscModel, "documentName", foodPantryDocumentName);
-        updateSingleValueOfDocument(res, document, "information", newInformation);
+        let result = await findDocumentInCollection(miscModel, "documentName", foodPantryDocumentName);
+
+        if(!(result instanceof Array))
+        {
+            respondToClient(res, await updateSingleValueOfDocument(result, "information", newInformation));
+        }
+        else
+        {
+            respondToClient(res, result);
+        }
     }
     else
     {
-        res.status(201).json({ message: "Information can not be empty" }); 
+        respondToClient(res, createResponseForClient(200, "Information can not be empty"));
     }
     
 });
@@ -178,23 +183,24 @@ app.put('/food_pantry', async (req, res) => {
 
 // Other Methods
 
-// Function to find and send all documents from a given collection
-async function getAndSendAllDocumentsInCollection(res, model)
+// Function to find all documents from a given collection
+async function getAllDocumentsInCollection(model)
 {
     try 
     {
         const resultingDocuments = await model.find({});
         console.log(resultingDocuments);
-        res.json(resultingDocuments);
+
+        return createResponseForClient(201, resultingDocuments); // Return success response
     } 
     catch (error) 
     {
-        res.status(500).json({ message: error.message });
+        return createResponseForClient(500, error.message); // Return error response if an error occurs
     }
 }
 
 // Function to find and send documents from a given collection
-async function getAndSendSpecificDocument(res, model, selectedDocumentName)
+async function getSpecificDocument(model, selectedDocumentName)
 {
     try 
     {
@@ -203,31 +209,32 @@ async function getAndSendSpecificDocument(res, model, selectedDocumentName)
         
         if (!resultingDocument) 
         {
-            return res.status(404).json({ message: "Sorry, this information could not be found" });
+            return createResponseForClient(500, "Sorry, this information could not be found"); 
         }
 
         console.log(resultingDocument);
-        res.json(resultingDocument);
+
+        return createResponseForClient(201, resultingDocument); // Return success response
     } 
     catch (error) 
     {
-        res.status(500).json({ message: error.message });
+        return createResponseForClient(500, error.message); // Return error response if an error occurs
     }
 }
 
 // Adds a document to a collection and sends a response to the client with the result of the attempt
-async function addDocumentToCollection(res, newDocument)
+async function addDocumentToCollection(newDocument)
 {
     try 
     {
         const document = await newDocument.save();
-
         console.log(document);
-        res.status(201).json(document); // Return the newly created document as JSON response
+
+        return createResponseForClient(201, "Added Document"); // Return success response
     } 
     catch (error) 
     {
-        res.status(400).json({ message: error.message }); // If there is an error, return error message
+        return createResponseForClient(500, error.message); // Return error response if an error occurs
     }
 }
 
@@ -238,11 +245,13 @@ function isValidPrice(price)
     return !isNaN(parseFloat(price)) && isFinite(price) && Number(price) >= 0;
 }
 
+// Function to check if a string is not empty
 function stringNotEmpty(string)
 {
     return string.length > 0;
 }
 
+// Function to find a document in a given collection based on key-value pair
 async function findDocumentInCollection(model, key, value)
 {
      // Create an object with the key variable as the property name
@@ -256,32 +265,52 @@ async function findDocumentInCollection(model, key, value)
          
          if (!document) 
          {
-             return res.status(404).json({ message: "Document not found" });
+             return createResponseForClient(404, "Document not found"); // Return error response if document not found
          }
 
-         return document;
+         return document; // Return found document
      } 
      catch (error) 
      {
-         res.status(500).json({ message: error.message });
+        return createResponseForClient(500, error.message); // Return error response if an error occurs
      }
 }
 
-async function updateSingleValueOfDocument(res, documentToUpdate, keyOfValueToUpdate, newValue)
+// Function to update a single value of a document in a collection
+async function updateSingleValueOfDocument(documentToUpdate, keyOfValueToUpdate, newValue)
 {
     try 
     {
         // Update the information
         documentToUpdate[keyOfValueToUpdate] = newValue;
-        await documentToUpdate.save();
+        await documentToUpdate.save(); // Save updated document
 
-        console.log("Document updated:", documentToUpdate);
-        res.status(200).json({ message: "Document updated successfully" });
+        return createResponseForClient(200, "Document updated successfully"); // Return success response
     } 
     catch (error) 
     {
-        res.status(500).json({ message: error.message });
+        return createResponseForClient(500, error.message); // Return error response if an error occurs
     }
+}
+
+// Function to send response to the client
+function respondToClient(res, responseForClient)
+{
+    let statusCode = responseForClient[0];
+    let responseMessage = responseForClient[1];
+
+    res.status(statusCode).json(responseMessage); // Send response to client with status code and message
+}
+
+// Function to create response JSON object for the client
+function createResponseForClient(statusCode, responseMessage)
+{
+    if(typeof responseMessage === "string")
+    {
+        responseMessage = { message: responseMessage }; // Wrap response message in JSON object if it's a string
+    }
+
+    return [statusCode, responseMessage]; // Return statusCode and responseMessage as an array
 }
 
 

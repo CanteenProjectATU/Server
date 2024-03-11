@@ -158,26 +158,60 @@ app.post('/recipes', async (req, res) => {
 // Route to update the food pantry document in the misc collection
 app.put('/food_pantry', async (req, res) => {
 
+    // Extracting information from the request body
     let newInformation = req.body.information;
 
+    // Check if the string from the request body are empty
     if(stringNotEmpty(newInformation))
     {
-        let result = await findDocumentInCollection(miscModel, "documentName", foodPantryDocumentName);
+        let result = await findDocumentInCollection(miscModel, "documentName", foodPantryDocumentName); // Attempt to find the document in the misc collection
 
-        if(!(result instanceof Array))
+        if(!(result instanceof Array)) // If the document was found
         {
+            // Update the document and send a response to the client
             respondToClient(res, await updateSingleValueOfDocument(result, "information", newInformation));
         }
-        else
+        else // If the document was not found
         {
-            respondToClient(res, result);
+            respondToClient(res, result); // Send error message as a response to the client
         }
     }
     else
     {
         respondToClient(res, createResponseForClient(200, "Information can not be empty"));
     }
-    
+});
+
+// Route to update the opening hours for a day in the opening hours collection
+app.put('/opening_hours', async (req, res) => {
+
+    // Extracting day, opening time, and closing time from the request body
+    const { day, openingTime, closingTime } = req.body;
+
+    // Check if any of the strings from the request body are empty
+    if(stringNotEmpty(day) && stringNotEmpty(openingTime) && stringNotEmpty(closingTime))
+    {
+        let result = await findDocumentInCollection(openingHoursModel, "day", day); // Attempt to find the document in the openingHours collection
+
+        if(!(result instanceof Array)) // If the document was found
+        {
+            openingTimeStatusCode = (await updateSingleValueOfDocument(result, "openingTime", openingTime))[0]; // Get status code of the result of updating the openingTime
+            closingTimeStatusCode = (await updateSingleValueOfDocument(result, "closingTime", closingTime))[0]; // Get status code of the result of updating the closingTime
+
+            if(openingTimeStatusCode == 200 && closingTimeStatusCode == 200) // Ensure that both the status codes are 200 (both documents updated successfully)
+            {
+                respondToClient(res, createResponseForClient(200, "Successfully updated opening time")); // Send success message as a response to the client
+            }
+        }
+        else // If the document was not found
+        {
+            respondToClient(res, result); // Send error message as a response to the client
+        }
+    }
+    else
+    {
+        respondToClient(res, createResponseForClient(200, "Information can not be empty"));
+    }  
 });
 
 

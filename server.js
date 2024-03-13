@@ -61,11 +61,26 @@ const openingHoursSchema = new mongoose.Schema({
     closingTime: String
 });
 
+// Schema for weeklyMenuItem
+const weeklyMenuItemSchema = new mongoose.Schema({
+    menuItemId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'menus' // Reference to the menus collection
+    }
+});
+
+// Schema for weeklyMenu
+const weeklyMenuSchema = new mongoose.Schema({
+    day: String,
+    dailyMenu: [weeklyMenuItemSchema]
+});
+
 // Create models based on schemas
 const menusModel = mongoose.model('menus', menusSchema); // Model for menus
 const recipesModel = mongoose.model('recipes', recipesSchema); // Model for recipes
 const miscModel = mongoose.model('misc', miscSchema, 'misc'); // Model for misc
 const openingHoursModel = mongoose.model('openingHours', openingHoursSchema, 'openingHours'); // Model for openingHours
+const weeklyMenuModel = mongoose.model('weeklyMenu', weeklyMenuSchema, 'weeklyMenu'); // Model for weeklyMenus
 
 let foodPantryDocumentName = "FoodPantry";
 
@@ -94,6 +109,30 @@ app.get('/opening_hours', async (req, res) => {
 
     respondToClient(res, await getAllDocumentsInCollection(openingHoursModel));
 });
+
+// Route to get all of the weekly menu items from the weeklyMenu collection of the database and send them as a response to the client.
+app.get('/weekly_menu', async (req, res) => {
+
+    try 
+    {
+        const weeklyMenus = await weeklyMenuModel.find({}).populate('dailyMenu.menuItemId'); // Populate the menuItemId field in the dailyMenu array
+
+        // Filter out dailyMenu items where menuItem doesn't exist in the menus collection
+        weeklyMenus.forEach(menu => {
+            menu.dailyMenu = menu.dailyMenu.filter(item => item.menuItemId);
+        });
+
+        // Send the populated weeklyMenus array as a response to the client
+        respondToClient(res, createResponseForClient(200, weeklyMenus));
+    } 
+    catch (error) 
+    {
+        console.error(error);
+        respondToClient(res, createResponseForClient(500, "Internal Server Error"));
+    }
+});
+
+
 
 
 // POST Methods

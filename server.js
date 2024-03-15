@@ -9,8 +9,7 @@ app.use(cors());
 app.use(function (req, res, next) {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    res.header("Access-Control-Allow-Headers",
-        "Origin, X-Requested-With, Content-Type, Accept");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     next();
 });
 
@@ -19,8 +18,11 @@ const bodyParser = require('body-parser');
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
+// URI to connect to the MongoDB cloud database
+const mongoDbURI = "" // Paste URI inside quotation marks
+
 // MongoDB connection
-mongoose.connect('mongodb://0.0.0.0:27017/Y3_Canteen_Project_Temp_Test') // This is a local test MongoDB database
+mongoose.connect(mongoDbURI)
     .then(() => {
         console.log('MongoDB connected successfully');
     })
@@ -34,18 +36,22 @@ db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
 // Define schemas for MongoDB collections
 
-// Schema for menus
-const menusSchema = new mongoose.Schema({
+// Schema for menuItems
+const menuItemsSchema = new mongoose.Schema({
     name: String,
-    allergenInfo: String,
-    price: Number,
+	description: String,
+	price: Number,
+	ingredients: String,
+    allergens: String
 });
 
 // Schema for recipes
 const recipesSchema = new mongoose.Schema({
-    name: String,
-    allergenInfo: String,
-    recipe: String
+    title: String,
+    description: String,
+    image: String,
+    allergens: String,
+    file: String
 });
 
 // Schema for misc (collection with miscellaneous documents)
@@ -61,35 +67,36 @@ const openingHoursSchema = new mongoose.Schema({
     closingTime: String
 });
 
-// Schema for weeklyMenuItem
-const weeklyMenuItemSchema = new mongoose.Schema({
+// Schema for item (from the menu collection)
+const itemSchema = new mongoose.Schema({
     menuItemId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'menus' // Reference to the menus collection
+        ref: 'menuItems' // Reference to the menuItems collection
     }
 });
 
-// Schema for weeklyMenu
-const weeklyMenuSchema = new mongoose.Schema({
+// Schema for menu
+const menuSchema = new mongoose.Schema({
     day: String,
-    dailyMenu: [weeklyMenuItemSchema]
+    items: [itemSchema]
 });
 
 // Create models based on schemas
-const menusModel = mongoose.model('menus', menusSchema); // Model for menus
+const menuItemsModel = mongoose.model('menuItems', menuItemsSchema, 'menuItems'); // Model for menuItems
 const recipesModel = mongoose.model('recipes', recipesSchema); // Model for recipes
 const miscModel = mongoose.model('misc', miscSchema, 'misc'); // Model for misc
 const openingHoursModel = mongoose.model('openingHours', openingHoursSchema, 'openingHours'); // Model for openingHours
-const weeklyMenuModel = mongoose.model('weeklyMenu', weeklyMenuSchema, 'weeklyMenu'); // Model for weeklyMenus
+const menuModel = mongoose.model('menu', menuSchema, 'menu'); // Model for menu
 
 let foodPantryDocumentName = "FoodPantry";
 
+
 // GET Methods
 
-// Route to get all of the menu items from the menu collection of the database and sends them as a response to the client.
-app.get('/menu', async (req, res) => {
+// Route to get all of the menu items from the menu items collection of the database and sends them as a response to the client.
+app.get('/menu_items', async (req, res) => {
 
-    respondToClient(res, await getAllDocumentsInCollection(menusModel));
+    respondToClient(res, await getAllDocumentsInCollection(menuItemsModel));
 });
 
 // Route to get all of the recipes from the recipe collection of the database and sends them as a response to the client.
@@ -110,16 +117,16 @@ app.get('/opening_hours', async (req, res) => {
     respondToClient(res, await getAllDocumentsInCollection(openingHoursModel));
 });
 
-// Route to get all of the weekly menu items from the weeklyMenu collection of the database and send them as a response to the client.
-app.get('/weekly_menu', async (req, res) => {
+// Route to get all of the weekly menu items from the menu collection of the database and send them as a response to the client.
+app.get('/menu', async (req, res) => {
 
     try 
     {
-        const weeklyMenus = await weeklyMenuModel.find({}).populate('dailyMenu.menuItemId'); // Populate the menuItemId field in the dailyMenu array
+        const weeklyMenus = await menuModel.find({}).populate('items.menuItemId'); // Populate the menuItemId field in the items array
 
-        // Filter out dailyMenu items where menuItem doesn't exist in the menus collection
+        // Filter out items items where menuItems doesn't exist in the menuItems collection
         weeklyMenus.forEach(menu => {
-            menu.dailyMenu = menu.dailyMenu.filter(item => item.menuItemId);
+            menu.items = menu.items.filter(item => item.menuItemId);
         });
 
         console.log(weeklyMenus);
@@ -136,25 +143,26 @@ app.get('/weekly_menu', async (req, res) => {
 
 
 
-
 // POST Methods
 
-// Route to add a new menu item to the menu collection
-app.post('/menu', async (req, res) => {
+// Route to add a new menu item to the menuItem collection
+app.post('/menu_items', async (req, res) => {
 
-        // Extracting food name, allergy info, and price from the request body
-        const { name, allergenInfo, price } = req.body;
+        // Extracting information from the request body
+        const { name, description, price, ingredients, allergens } = req.body;
 
         // Checks if the submitted data is valid
-        if(stringNotEmpty(name) && stringNotEmpty(allergenInfo) && isValidPrice(price))
+        if(stringNotEmpty(name) && stringNotEmpty(description) && stringNotEmpty(ingredients) && stringNotEmpty(allergens) && isValidPrice(price))
         {
             let newPrice = Number(price).toFixed(2); // Ensures that there are not more than two numbers after the decimal point
 
             // Create a new menu item object
-            const newDocument = new menusModel({
+            const newDocument = new menuItemsModel({
                 name: name,
-                allergenInfo: allergenInfo,
-                price: newPrice
+                description: description,
+                price: newPrice,
+                ingredients: ingredients,
+                allergens: allergens
             });
 
             respondToClient(res, await addDocumentToCollection(newDocument));
@@ -169,20 +177,21 @@ app.post('/menu', async (req, res) => {
 // Route to add a new recipe to the recipe collection
 app.post('/recipes', async (req, res) => {
 
-    // Extracting food name, allergy info, and recipe from the request body
-    const { name, allergenInfo, recipe } = req.body;
+    // Extracting information from the request body
+    const { title, description, image, allergens, file } = req.body;
 
     // Checks if the submitted data is valid
-    if(stringNotEmpty(name) && stringNotEmpty(allergenInfo) && stringNotEmpty(recipe))
+    if(stringNotEmpty(title) && stringNotEmpty(description) && stringNotEmpty(image) && stringNotEmpty(allergens) && stringNotEmpty(file))
     {
         // Create a new recipe object
         const newDocument = new recipesModel({
-            name: name,
-            allergenInfo: allergenInfo,
-            recipe: recipe
+            title: title,
+            description: description,
+            image: image,
+            allergens: allergens,
+            file: file
         });
 
-        //addDocumentToCollection(newDocument);
         let responseForClient = await addDocumentToCollection(newDocument);
         respondToClient(res, responseForClient);
     }
@@ -255,8 +264,8 @@ app.put('/opening_hours', async (req, res) => {
     }  
 });
 
-// Route to add a menu item from the menus collection to a specific day in the weeklyMenu collection
-app.put('/weekly_menu', async (req, res) => {
+// Route to add a menu item from the menuItems collection to a specific day in the menu collection
+app.put('/menu', async (req, res) => {
 
     try 
     {
@@ -275,27 +284,27 @@ app.put('/weekly_menu', async (req, res) => {
             return respondToClient(res, createResponseForClient(400, "Invalid menuItemId"));
         }
 
-        // Attempt to find document with an _id of menuItemId in menus collection
-        const menuItem = await findDocumentInCollection(menusModel, "_id", menuItemId);
+        // Attempt to find document with an _id of menuItemId in menuItems collection
+        const menuItems = await findDocumentInCollection(menuItemsModel, "_id", menuItemId);
 
-        // If menuItem was not found
-        if(menuItem instanceof Array)
+        // If menuItems was not found
+        if(menuItems instanceof Array)
         {
             return respondToClient(res, createResponseForClient(404, "menuItemId does not exist"));
         }
 
-        const weeklyMenu = await weeklyMenuModel.findOne({ day }); // Find the weekly menu document based on the day
+        const menu = await menuModel.findOne({ day }); // Find the menu document based on the day
 
-        // Check if the weekly menu document exists
-        if (!weeklyMenu) 
+        // Check if the menu document exists
+        if (!menu) 
         {
             // Send a 404 response if the document is not found
             return respondToClient(res, createResponseForClient(404, "Menu not found for the provided day"));
         }
 
-        weeklyMenu.dailyMenu.push({ menuItemId }); // Add menuItemId to the dailyMenu array
+        menu.items.push({ menuItemId }); // Add menuItemId to the items array
 
-        await weeklyMenu.save(); // Save the updated weekly menu document
+        await menu.save(); // Save the updated menu document
 
         respondToClient(res, createResponseForClient(200, "Weekly menu updated successfully")); // Send success response
     } 
@@ -307,6 +316,8 @@ app.put('/weekly_menu', async (req, res) => {
 });
 
 
+// DELETE Methods
+
 
 
 // Other Methods
@@ -316,7 +327,7 @@ async function getAllDocumentsInCollection(model)
 {
     try 
     {
-        const resultingDocuments = await model.find({});
+        const resultingDocuments = await model.find({}); // Find all documents in the given collection
         console.log(resultingDocuments);
 
         return createResponseForClient(201, resultingDocuments); // Return success response

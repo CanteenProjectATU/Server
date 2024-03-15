@@ -122,6 +122,8 @@ app.get('/weekly_menu', async (req, res) => {
             menu.dailyMenu = menu.dailyMenu.filter(item => item.menuItemId);
         });
 
+        console.log(weeklyMenus);
+
         // Send the populated weeklyMenus array as a response to the client
         respondToClient(res, createResponseForClient(200, weeklyMenus));
     } 
@@ -160,7 +162,7 @@ app.post('/menu', async (req, res) => {
         else
         {
             // TODO: Provide more informative error messages
-            respondToClient(res, createResponseForClient(200, "Invalid entry"));
+            respondToClient(res, createResponseForClient(400, "Invalid entry"));
         }
 });
 
@@ -187,7 +189,7 @@ app.post('/recipes', async (req, res) => {
     else
     {
         // TODO: Provide more informative error messages
-        respondToClient(res, createResponseForClient(200, "Invalid entry"));
+        respondToClient(res, createResponseForClient(400, "Invalid entry"));
     }
 });
 
@@ -217,7 +219,7 @@ app.put('/food_pantry', async (req, res) => {
     }
     else
     {
-        respondToClient(res, createResponseForClient(200, "Information can not be empty"));
+        respondToClient(res, createResponseForClient(400, "Information can not be empty"));
     }
 });
 
@@ -249,9 +251,62 @@ app.put('/opening_hours', async (req, res) => {
     }
     else
     {
-        respondToClient(res, createResponseForClient(200, "Information can not be empty"));
+        respondToClient(res, createResponseForClient(400, "Information can not be empty"));
     }  
 });
+
+// Route to add a menu item from the menus collection to a specific day in the weeklyMenu collection
+app.put('/weekly_menu', async (req, res) => {
+
+    try 
+    {
+        // Extracting day and menuItemId from the request body
+        const { day, menuItemId } = req.body;
+
+        // Check if day and menuItemId are provided
+        if (!stringNotEmpty(day) || !menuItemId) 
+        {
+            return respondToClient(res, createResponseForClient(400, "Missing day or menuItemId"));
+        }
+
+        // Check if menuItemId is a valid ObjectId
+        if (!mongoose.Types.ObjectId.isValid(menuItemId)) 
+        {
+            return respondToClient(res, createResponseForClient(400, "Invalid menuItemId"));
+        }
+
+        // Attempt to find document with an _id of menuItemId in menus collection
+        const menuItem = await findDocumentInCollection(menusModel, "_id", menuItemId);
+
+        // If menuItem was not found
+        if(menuItem instanceof Array)
+        {
+            return respondToClient(res, createResponseForClient(404, "menuItemId does not exist"));
+        }
+
+        const weeklyMenu = await weeklyMenuModel.findOne({ day }); // Find the weekly menu document based on the day
+
+        // Check if the weekly menu document exists
+        if (!weeklyMenu) 
+        {
+            // Send a 404 response if the document is not found
+            return respondToClient(res, createResponseForClient(404, "Menu not found for the provided day"));
+        }
+
+        weeklyMenu.dailyMenu.push({ menuItemId }); // Add menuItemId to the dailyMenu array
+
+        await weeklyMenu.save(); // Save the updated weekly menu document
+
+        respondToClient(res, createResponseForClient(200, "Weekly menu updated successfully")); // Send success response
+    } 
+    catch (error) 
+    {
+        console.error(error);
+        respondToClient(res, createResponseForClient(500, "Internal Server Error")); // Send error response
+    }
+});
+
+
 
 
 // Other Methods

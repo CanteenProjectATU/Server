@@ -10,6 +10,7 @@
 
 # production
 /build
+/uploads
 
 # misc
 .DS_Store
@@ -21,3 +22,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.vs/ProjectSettings.json
+.vs/slnx.sqlite
+.vs/Server/v16/.suo
+.vs/VSWorkspaceState.json

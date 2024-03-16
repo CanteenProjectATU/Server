@@ -1,5 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
+var fs = require('fs');
+var path = require('path');
+const multer = require('multer');
 const app = express();
 const port = 4000;
 
@@ -19,7 +22,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 // URI to connect to the MongoDB cloud database
-const mongoDbURI = "" // Paste URI inside quotation marks
+const mongoDbURI = "mongodb+srv://admin:h0wmucharesp1ceboxe5%3F@canteenapp.vh3e3ok.mongodb.net/canteen?retryWrites=true&w=majority&appName=CANTEENAPP" // Paste URI inside quotation marks
 
 // MongoDB connection
 mongoose.connect(mongoDbURI)
@@ -33,6 +36,17 @@ mongoose.connect(mongoDbURI)
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
+// Storage location for file uploads - Recipe PDFs
+const storage = multer.diskStorage ({
+    destination: (req, file, cb) => { //Define the destination folder
+        cb(null, 'uploads/')
+    },
+    filename: (req, file, cb) => {
+        const newId = new mongoose.Types.ObjectId(); //Creates an ObjectID for the recipe object to use.
+        cb(null, newId+".pdf") //Define the filename to save
+    }
+})
+const multerUpload = multer({storage})
 
 // Define schemas for MongoDB collections
 
@@ -50,8 +64,7 @@ const recipesSchema = new mongoose.Schema({
     title: String,
     description: String,
     image: String,
-    allergens: String,
-    file: String
+    allergens: String
 });
 
 // Schema for misc (collection with miscellaneous documents)
@@ -104,6 +117,7 @@ app.get('/recipes', async (req, res) => {
 
     respondToClient(res, await getAllDocumentsInCollection(recipesModel));
 });
+
 
 // Route to get the food pantry information from the misc collection of the database and sends it as a response to the client.
 app.get('/food_pantry', async (req, res) => {
@@ -175,24 +189,31 @@ app.post('/menu_items', async (req, res) => {
 });
 
 // Route to add a new recipe to the recipe collection
-app.post('/recipes', async (req, res) => {
+// multerUpload.single() uploads the file to the /uploads folder.
+app.post('/recipes', multerUpload.single('file'), async (req, res) => {
 
-    // Extracting information from the request body
-    const { title, description, image, allergens, file } = req.body;
+    const file = req.file;
+    const id = file.filename.replace('.pdf', '');
+    // Extracting information from the request body - Req.Body contains the text fields, everything except file.
+    const { title, description, image, allergens } = req.body;
+
+    console.log(file);
+    console.log(title+ ", "+description+", "+image+", "+!file);
 
     // Checks if the submitted data is valid
-    if(stringNotEmpty(title) && stringNotEmpty(description) && stringNotEmpty(image) && stringNotEmpty(allergens) && stringNotEmpty(file))
+    if(stringNotEmpty(title) && stringNotEmpty(description) && stringNotEmpty(image) && stringNotEmpty(allergens) && file != null)
     {
         // Create a new recipe object
         const newDocument = new recipesModel({
+            _id: new mongoose.Types.ObjectId(id),
             title: title,
             description: description,
             image: image,
-            allergens: allergens,
-            file: file
+            allergens: allergens
         });
 
         let responseForClient = await addDocumentToCollection(newDocument);
+
         respondToClient(res, responseForClient);
     }
     else

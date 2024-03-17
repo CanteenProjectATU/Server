@@ -22,7 +22,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 // URI to connect to the MongoDB cloud database
-const mongoDbURI = "mongodb://0.0.0.0:27017/Y3_Test_Canteen_Project" // Paste URI inside quotation marks
+const mongoDbURI = "" // Paste URI inside quotation marks
 
 // MongoDB connection
 mongoose.connect(mongoDbURI)
@@ -101,6 +101,11 @@ const miscModel = mongoose.model('misc', miscSchema, 'misc'); // Model for misc
 const openingHoursModel = mongoose.model('openingHours', openingHoursSchema, 'openingHours'); // Model for openingHours
 const menuModel = mongoose.model('menu', menuSchema, 'menu'); // Model for menu
 
+const HTTP_STATUS_CODE_OK = 200;
+const HTTP_STATUS_CODE_CREATED = 201;
+const HTTP_STATUS_CODE_BAD_REQUEST = 400;
+const HTTP_STATUS_CODE_NOT_FOUND = 404;
+const HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR = 500;
 let foodPantryDocumentName = "FoodPantry";
 
 
@@ -151,12 +156,12 @@ app.get('/menu', async (req, res) => {
         console.log(weeklyMenus);
 
         // Send the populated weeklyMenus array as a response to the client
-        respondToClient(res, createResponseForClient(200, weeklyMenus));
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, weeklyMenus));
     } 
     catch (error) 
     {
         console.error(error);
-        respondToClient(res, createResponseForClient(500, "Internal Server Error"));
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, "Internal Server Error"));
     }
 });
 
@@ -189,7 +194,7 @@ app.post('/menu_items', async (req, res) => {
         else
         {
             // TODO: Provide more informative error messages
-            respondToClient(res, createResponseForClient(400, "Invalid entry"));
+            respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid entry"));
         }
 });
 
@@ -224,7 +229,7 @@ app.post('/recipes', multerUpload.single('file'), async (req, res) => {
     else
     {
         // TODO: Provide more informative error messages
-        respondToClient(res, createResponseForClient(400, "Invalid entry"));
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid entry"));
     }
 });
 
@@ -242,7 +247,7 @@ app.put('/food_pantry', async (req, res) => {
     {
         let result = await findDocumentInCollection(miscModel, "documentName", foodPantryDocumentName); // Attempt to find the document in the misc collection
 
-        if(result[0] == 200) // If the document was found
+        if(result[0] == HTTP_STATUS_CODE_OK) // If the document was found
         {
             // Update the document and send a response to the client
             respondToClient(res, await updateSingleValueOfDocument(result[1], "information", newInformation));
@@ -254,7 +259,7 @@ app.put('/food_pantry', async (req, res) => {
     }
     else
     {
-        respondToClient(res, createResponseForClient(400, "Information can not be empty"));
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Information can not be empty"));
     }
 });
 
@@ -269,15 +274,15 @@ app.put('/opening_hours', async (req, res) => {
     {
         let result = await findDocumentInCollection(openingHoursModel, "day", day); // Attempt to find the document in the openingHours collection
 
-        if(result[0] == 200) // If the document was found
+        if(result[0] == HTTP_STATUS_CODE_OK) // If the document was found
         {
             let document = result[1];
             openingTimeStatusCode = (await updateSingleValueOfDocument(document, "openingTime", openingTime))[0]; // Get status code of the result of updating the openingTime
             closingTimeStatusCode = (await updateSingleValueOfDocument(document, "closingTime", closingTime))[0]; // Get status code of the result of updating the closingTime
 
-            if(openingTimeStatusCode == 200 && closingTimeStatusCode == 200) // Ensure that both the status codes are 200 (both documents updated successfully)
+            if(openingTimeStatusCode == HTTP_STATUS_CODE_OK && closingTimeStatusCode == HTTP_STATUS_CODE_OK) // Ensure that both the status codes are HTTP_STATUS_CODE_OK (both documents updated successfully)
             {
-                respondToClient(res, createResponseForClient(200, "Successfully updated opening time")); // Send success message as a response to the client
+                respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, "Successfully updated opening time")); // Send success message as a response to the client
             }
         }
         else // If the document was not found
@@ -287,7 +292,7 @@ app.put('/opening_hours', async (req, res) => {
     }
     else
     {
-        respondToClient(res, createResponseForClient(400, "Information can not be empty"));
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Information can not be empty"));
     }  
 });
 
@@ -302,22 +307,22 @@ app.put('/menu', async (req, res) => {
         // Check if day and menuItemId are provided
         if (!stringNotEmpty(day) || !menuItemId) 
         {
-            return respondToClient(res, createResponseForClient(400, "Missing day or menuItemId"));
+            return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Missing day or menuItemId"));
         }
 
         // Check if menuItemId is a valid ObjectId
         if (!mongoose.Types.ObjectId.isValid(menuItemId)) 
         {
-            return respondToClient(res, createResponseForClient(400, "Invalid menuItemId"));
+            return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid menuItemId"));
         }
 
         // Attempt to find document with an _id of menuItemId in menuItems collection
         const menuItems = await findDocumentInCollection(menuItemsModel, "_id", menuItemId);
 
         // If menuItems was not found
-        if(menuItems[0] != 200)
+        if(menuItems[0] != HTTP_STATUS_CODE_OK)
         {
-            return respondToClient(res, createResponseForClient(404, "menuItemId does not exist"));
+            return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_NOT_FOUND, "menuItemId does not exist"));
         }
 
         const menu = await menuModel.findOne({ day }); // Find the menu document based on the day
@@ -325,26 +330,31 @@ app.put('/menu', async (req, res) => {
         // Check if the menu document exists
         if (!menu) 
         {
-            // Send a 404 response if the document is not found
-            return respondToClient(res, createResponseForClient(404, "Menu not found for the provided day"));
+            // Send a HTTP_STATUS_CODE_NOT_FOUND response if the document is not found
+            return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_NOT_FOUND, "Menu not found for the provided day"));
         }
 
         menu.items.push({ menuItemId }); // Add menuItemId to the items array
 
         await menu.save(); // Save the updated menu document
 
-        respondToClient(res, createResponseForClient(200, "Weekly menu updated successfully")); // Send success response
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, "Weekly menu updated successfully")); // Send success response
     } 
     catch (error) 
     {
         console.error(error);
-        respondToClient(res, createResponseForClient(500, "Internal Server Error")); // Send error response
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, "Internal Server Error")); // Send error response
     }
 });
 
 
 // DELETE Methods
 
+// Route to delete a specific menuItem from the menuItems collection based on its object id
+app.delete('/menu_items/:id', async (req, res) => {
+
+    respondToClient(res, await deleteDocumentById(menuItemsModel, req.params.id));
+});
 
 
 // Other Methods
@@ -357,11 +367,11 @@ async function getAllDocumentsInCollection(model)
         const resultingDocuments = await model.find({}); // Find all documents in the given collection
         console.log(resultingDocuments);
 
-        return createResponseForClient(201, resultingDocuments); // Return success response
+        return createResponseForClient(HTTP_STATUS_CODE_CREATED, resultingDocuments); // Return success response
     } 
     catch (error) 
     {
-        return createResponseForClient(500, error.message); // Return error response if an error occurs
+        return createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, error.message); // Return error response if an error occurs
     }
 }
 
@@ -375,16 +385,16 @@ async function getSpecificDocument(model, selectedDocumentName)
         
         if (!resultingDocument) 
         {
-            return createResponseForClient(500, "Sorry, this information could not be found"); 
+            return createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, "Sorry, this information could not be found"); 
         }
 
         console.log(resultingDocument);
 
-        return createResponseForClient(201, resultingDocument); // Return success response
+        return createResponseForClient(HTTP_STATUS_CODE_CREATED, resultingDocument); // Return success response
     } 
     catch (error) 
     {
-        return createResponseForClient(500, error.message); // Return error response if an error occurs
+        return createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, error.message); // Return error response if an error occurs
     }
 }
 
@@ -396,11 +406,34 @@ async function addDocumentToCollection(newDocument)
         const document = await newDocument.save();
         console.log(document);
 
-        return createResponseForClient(201, "Added Document"); // Return success response
+        return createResponseForClient(HTTP_STATUS_CODE_CREATED, "Added Document"); // Return success response
     } 
     catch (error) 
     {
-        return createResponseForClient(500, error.message); // Return error response if an error occurs
+        return createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, error.message); // Return error response if an error occurs
+    }
+}
+
+async function deleteDocumentById(model, id)
+{
+    try 
+    {
+        const result = await findDocumentInCollection(model, "_id", id); // Find document in collection
+
+        // Return error if document not found
+        if(result[0] != HTTP_STATUS_CODE_OK)
+        {
+            return result;
+        }
+
+        await model.findByIdAndDelete(id); // Find document by the object id and delete it
+
+        return createResponseForClient(HTTP_STATUS_CODE_OK, "Document deleted"); // Return success response
+    } 
+    catch (error) 
+    {
+        console.log(error.message);
+        return createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, error.message); // Return error response if an error occurs
     }
 }
 
@@ -431,14 +464,14 @@ async function findDocumentInCollection(model, key, value)
          
          if (!document) 
          {
-             return createResponseForClient(404, "Document not found"); // Return error response if document not found
+             return createResponseForClient(HTTP_STATUS_CODE_NOT_FOUND, "Document not found"); // Return error response if document not found
          }
 
-         return createResponseForClient(200, document);
+         return createResponseForClient(HTTP_STATUS_CODE_OK, document);
      } 
      catch (error) 
      {
-        return createResponseForClient(500, error.message); // Return error response if an error occurs
+        return createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, error.message); // Return error response if an error occurs
      }
 }
 
@@ -451,11 +484,11 @@ async function updateSingleValueOfDocument(documentToUpdate, keyOfValueToUpdate,
         documentToUpdate[keyOfValueToUpdate] = newValue;
         await documentToUpdate.save(); // Save updated document
 
-        return createResponseForClient(200, "Document updated successfully"); // Return success response
+        return createResponseForClient(HTTP_STATUS_CODE_OK, "Document updated successfully"); // Return success response
     } 
     catch (error) 
     {
-        return createResponseForClient(500, error.message); // Return error response if an error occurs
+        return createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, error.message); // Return error response if an error occurs
     }
 }
 

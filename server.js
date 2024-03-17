@@ -5,7 +5,6 @@ var path = require('path');
 const multer = require('multer');
 const app = express();
 const port = 4000;
-
 // Use cors to allow cross origin requests
 const cors = require('cors');
 app.use(cors());
@@ -22,7 +21,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 // URI to connect to the MongoDB cloud database
-const mongoDbURI = "mongodb+srv://admin:h0wmucharesp1ceboxe5%3F@canteenapp.vh3e3ok.mongodb.net/canteen?retryWrites=true&w=majority&appName=CANTEENAPP" // Paste URI inside quotation marks
+const mongoDbURI = "" // Paste URI inside quotation marks
 
 // MongoDB connection
 mongoose.connect(mongoDbURI)
@@ -118,6 +117,18 @@ app.get('/recipes', async (req, res) => {
     respondToClient(res, await getAllDocumentsInCollection(recipesModel));
 });
 
+// Route to get an individual Recipe's PDF.
+app.get('/recipes/:recipeId', async (req, res) => {
+    const file = __dirname+'/uploads/'+req.params.recipeId+'.pdf'; //Path to recipe
+    fs.access(file, fs.constants.F_OK, (err) => { //Check if file exists
+        if(err) {
+            res.send(err)
+        }
+        else {
+            res.download(file); // Download if it does
+        }
+    })
+});
 
 // Route to get the food pantry information from the misc collection of the database and sends it as a response to the client.
 app.get('/food_pantry', async (req, res) => {

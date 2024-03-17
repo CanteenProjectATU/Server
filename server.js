@@ -106,7 +106,7 @@ const HTTP_STATUS_CODE_CREATED = 201;
 const HTTP_STATUS_CODE_BAD_REQUEST = 400;
 const HTTP_STATUS_CODE_NOT_FOUND = 404;
 const HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR = 500;
-let foodPantryDocumentName = "FoodPantry";
+const foodPantryDocumentName = "FoodPantry";
 
 
 // GET Methods
@@ -127,6 +127,12 @@ app.get('/menu_items/:id', async (req, res) => {
 app.get('/recipes', async (req, res) => {
 
     respondToClient(res, await getAllDocumentsInCollection(recipesModel));
+});
+
+// Route to get a specific recipe from the recipes collection based on its object id
+app.get('/recipes/:id', async (req, res) => {
+
+    respondToClient(res, await findDocumentInCollection(recipesModel, "_id", req.params.id));
 });
 
 // Route to get the food pantry information from the misc collection of the database and sends it as a response to the client.

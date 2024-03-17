@@ -167,7 +167,7 @@ app.get('/menu', async (req, res) => {
     {
         const weeklyMenus = await menuModel.find({}).populate('items.menuItemId'); // Populate the menuItemId field in the items array
 
-        // Filter out items items where menuItems doesn't exist in the menuItems collection
+        // Filter out items where menuItemId doesn't exist in the menuItems collection
         weeklyMenus.forEach(menu => {
             menu.items = menu.items.filter(item => item.menuItemId);
         });
@@ -176,6 +176,40 @@ app.get('/menu', async (req, res) => {
 
         // Send the populated weeklyMenus array as a response to the client
         respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, weeklyMenus));
+    } 
+    catch (error) 
+    {
+        console.error(error);
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, "Internal Server Error"));
+    }
+});
+
+// Route to get a specific menu from the menu collection based on a given day
+app.get('/menu/:day', async (req, res) => {
+
+    try 
+    {
+        const result = await findDocumentInCollection(menuModel, "day", req.params.day); // Find document in collection
+
+        // Return error if document not found
+        if(result[0] != HTTP_STATUS_CODE_OK)
+        {
+            return result;
+        }
+        else
+        {
+            const dailyMenu = await menuModel.find({day: req.params.day}).populate('items.menuItemId'); // Populate the menuItemId field in the items array
+
+            // Filter out items where menuItemId doesn't exist in the menuItems collection
+            dailyMenu.forEach(menu => {
+                menu.items = menu.items.filter(item => item.menuItemId);
+            });
+
+        console.log(dailyMenu);
+
+        // Send the populated weeklyMenus array as a response to the client
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, dailyMenu));
+        }
     } 
     catch (error) 
     {

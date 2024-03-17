@@ -22,7 +22,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 // URI to connect to the MongoDB cloud database
-const mongoDbURI = "mongodb+srv://admin:h0wmucharesp1ceboxe5%3F@canteenapp.vh3e3ok.mongodb.net/canteen?retryWrites=true&w=majority&appName=CANTEENAPP" // Paste URI inside quotation marks
+const mongoDbURI = "mongodb://0.0.0.0:27017/Y3_Test_Canteen_Project" // Paste URI inside quotation marks
 
 // MongoDB connection
 mongoose.connect(mongoDbURI)
@@ -112,12 +112,17 @@ app.get('/menu_items', async (req, res) => {
     respondToClient(res, await getAllDocumentsInCollection(menuItemsModel));
 });
 
+// Route to get a specific menuItem from the menuItems collection based on its object id
+app.get('/menu_items/:id', async (req, res) => {
+
+    respondToClient(res, await findDocumentInCollection(menuItemsModel, "_id", req.params.id));
+});
+
 // Route to get all of the recipes from the recipe collection of the database and sends them as a response to the client.
 app.get('/recipes', async (req, res) => {
 
     respondToClient(res, await getAllDocumentsInCollection(recipesModel));
 });
-
 
 // Route to get the food pantry information from the misc collection of the database and sends it as a response to the client.
 app.get('/food_pantry', async (req, res) => {
@@ -237,10 +242,10 @@ app.put('/food_pantry', async (req, res) => {
     {
         let result = await findDocumentInCollection(miscModel, "documentName", foodPantryDocumentName); // Attempt to find the document in the misc collection
 
-        if(!(result instanceof Array)) // If the document was found
+        if(result[0] == 200) // If the document was found
         {
             // Update the document and send a response to the client
-            respondToClient(res, await updateSingleValueOfDocument(result, "information", newInformation));
+            respondToClient(res, await updateSingleValueOfDocument(result[1], "information", newInformation));
         }
         else // If the document was not found
         {
@@ -264,10 +269,11 @@ app.put('/opening_hours', async (req, res) => {
     {
         let result = await findDocumentInCollection(openingHoursModel, "day", day); // Attempt to find the document in the openingHours collection
 
-        if(!(result instanceof Array)) // If the document was found
+        if(result[0] == 200) // If the document was found
         {
-            openingTimeStatusCode = (await updateSingleValueOfDocument(result, "openingTime", openingTime))[0]; // Get status code of the result of updating the openingTime
-            closingTimeStatusCode = (await updateSingleValueOfDocument(result, "closingTime", closingTime))[0]; // Get status code of the result of updating the closingTime
+            let document = result[1];
+            openingTimeStatusCode = (await updateSingleValueOfDocument(document, "openingTime", openingTime))[0]; // Get status code of the result of updating the openingTime
+            closingTimeStatusCode = (await updateSingleValueOfDocument(document, "closingTime", closingTime))[0]; // Get status code of the result of updating the closingTime
 
             if(openingTimeStatusCode == 200 && closingTimeStatusCode == 200) // Ensure that both the status codes are 200 (both documents updated successfully)
             {
@@ -309,7 +315,7 @@ app.put('/menu', async (req, res) => {
         const menuItems = await findDocumentInCollection(menuItemsModel, "_id", menuItemId);
 
         // If menuItems was not found
-        if(menuItems instanceof Array)
+        if(menuItems[0] != 200)
         {
             return respondToClient(res, createResponseForClient(404, "menuItemId does not exist"));
         }
@@ -428,7 +434,7 @@ async function findDocumentInCollection(model, key, value)
              return createResponseForClient(404, "Document not found"); // Return error response if document not found
          }
 
-         return document; // Return found document
+         return createResponseForClient(200, document);
      } 
      catch (error) 
      {

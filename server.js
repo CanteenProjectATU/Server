@@ -5,6 +5,7 @@ var path = require('path');
 const multer = require('multer');
 const app = express();
 const port = 4000;
+
 // Use cors to allow cross origin requests
 const cors = require('cors');
 app.use(cors());
@@ -190,30 +191,19 @@ app.get('/menu', async (req, res) => {
 // Route to add a new menu item to the menuItem collection
 app.post('/menu_items', async (req, res) => {
 
-        // Extracting information from the request body
-        const { name, description, price, ingredients, allergens } = req.body;
+    const result = createMenuItemObject(req.body, false);
 
-        // Checks if the submitted data is valid
-        if(stringNotEmpty(name) && stringNotEmpty(description) && stringNotEmpty(ingredients) && stringNotEmpty(allergens) && isValidPrice(price))
-        {
-            let newPrice = Number(price).toFixed(2); // Ensures that there are not more than two numbers after the decimal point
+    // Return error if document not found
+    if(result[0] != HTTP_STATUS_CODE_OK)
+    {
+        respondToClient(res, result);
+    }
+    else
+    {
+        newDocument = result[1];
 
-            // Create a new menu item object
-            const newDocument = new menuItemsModel({
-                name: name,
-                description: description,
-                price: newPrice,
-                ingredients: ingredients,
-                allergens: allergens
-            });
-
-            respondToClient(res, await addDocumentToCollection(newDocument));
-        }
-        else
-        {
-            // TODO: Provide more informative error messages
-            respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid entry"));
-        }
+        respondToClient(res, await addDocumentToCollection(newDocument));
+    }
 });
 
 // Route to add a new recipe to the recipe collection
@@ -253,6 +243,24 @@ app.post('/recipes', multerUpload.single('file'), async (req, res) => {
 
 
 // PUT Methods
+
+// Route to update a specific menuItem from the menuItems collection based on its object id
+app.put('/menu_items/:id', async (req, res) => {
+
+    const result = await createMenuItemObject(req.body, true);
+
+    // Return error if document not found
+    if(result[0] != HTTP_STATUS_CODE_OK)
+    {
+        respondToClient(res, result);
+    }
+    else
+    {
+        newDocument = result[1];
+
+        respondToClient(res, await updateDocumentById(menuItemsModel, req.params.id, newDocument));
+    }
+});
 
 // Route to update the food pantry document in the misc collection
 app.put('/food_pantry', async (req, res) => {
@@ -455,6 +463,29 @@ async function deleteDocumentById(model, id)
     }
 }
 
+async function updateDocumentById(model, id, newDocument)
+{
+    try 
+    {
+        const result = await findDocumentInCollection(model, "_id", id); // Find document in collection
+
+        // Return error if document not found
+        if(result[0] != HTTP_STATUS_CODE_OK)
+        {
+            return result;
+        }
+
+        const updatedDocument = await model.findByIdAndUpdate(id, newDocument, { new: true });
+
+        return createResponseForClient(HTTP_STATUS_CODE_OK, updatedDocument); // Return success response
+    } 
+    catch (error) 
+    {
+        console.log(error.message);
+        return createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, error.message); // Return error response if an error occurs
+    }
+}
+
 // Function to validate price
 function isValidPrice(price)
 {
@@ -528,6 +559,40 @@ function createResponseForClient(statusCode, responseMessage)
     }
 
     return [statusCode, responseMessage]; // Return statusCode and responseMessage as an array
+}
+
+function createMenuItemObject(requestBody, edit)
+{
+    // Extracting information from the request body
+    const { name, description, price, ingredients, allergens } = requestBody;
+
+    // Checks if the submitted data is valid
+    if(stringNotEmpty(name) && stringNotEmpty(description) && stringNotEmpty(ingredients) && stringNotEmpty(allergens) && isValidPrice(price))
+    {
+        let newPrice = Number(price).toFixed(2); // Ensures that there are not more than two numbers after the decimal point
+        
+        // Create a new menu item object
+        let newDocument = {
+            name: name,
+            description: description,
+            price: newPrice,
+            ingredients: ingredients,
+            allergens: allergens
+        };
+
+        if(!edit)
+        {
+            // Create a new menu item document
+            newDocument = new menuItemsModel(newDocument);
+        }
+
+        return createResponseForClient(HTTP_STATUS_CODE_OK, newDocument);
+    }
+    else
+    {
+        // TODO: Provide more informative error messages
+        return createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid entry");
+    }
 }
 
 

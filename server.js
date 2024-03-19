@@ -281,7 +281,7 @@ app.post('/recipes', multerUpload.single('file'), async (req, res) => {
 // Route to update a specific menuItem from the menuItems collection based on its object id
 app.put('/menu_items/:id', async (req, res) => {
 
-    const result = await createMenuItemObject(req.body, true);
+    const result = createMenuItemObject(req.body, true);
 
     // Return error if document not found
     if(result[0] != HTTP_STATUS_CODE_OK)
@@ -357,24 +357,12 @@ app.put('/opening_hours', async (req, res) => {
 });
 
 // Route to add a menu item from the menuItems collection to a specific day in the menu collection
-app.put('/menu', async (req, res) => {
+app.put('/menu/:day/:menuItemId', async (req, res) => {
 
     try 
     {
-        // Extracting day and menuItemId from the request body
-        const { day, menuItemId } = req.body;
-
-        // Check if day and menuItemId are provided
-        if (!stringNotEmpty(day) || !menuItemId) 
-        {
-            return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Missing day or menuItemId"));
-        }
-
-        // Check if menuItemId is a valid ObjectId
-        if (!mongoose.Types.ObjectId.isValid(menuItemId)) 
-        {
-            return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid menuItemId"));
-        }
+        // Extracting day and menuItemId from the request parameters
+        const { day, menuItemId } = req.params;
 
         // Attempt to find document with an _id of menuItemId in menuItems collection
         const menuItems = await findDocumentInCollection(menuItemsModel, "_id", menuItemId);
@@ -414,6 +402,40 @@ app.put('/menu', async (req, res) => {
 app.delete('/menu_items/:id', async (req, res) => {
 
     respondToClient(res, await deleteDocumentById(menuItemsModel, req.params.id));
+});
+
+// Route to delete a menuItem from a specific day in the menus collection
+app.delete('/menu/:day/:menuItemId', async (req, res) => {
+
+    // Extracting day and menuItemId from the request parameters
+    const { day, menuItemId } = req.params;
+
+    try 
+    {
+        // Find the menu for the given day
+        const menu = await menuModel.findOne({ day });
+
+        if (!menu) 
+        {
+            // Send a HTTP_STATUS_CODE_NOT_FOUND response if the document is not found
+            return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_NOT_FOUND, "Menu not found for the provided day"));
+        }
+
+        // Filter out the item with the given menuItemId
+        menu.items = menu.items.filter(item => {
+            return item.menuItemId.toString() !== menuItemId.toString();
+        });
+
+        // Save the updated document
+        await menu.save();
+
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, "Weekly menu updated successfully")); // Send success response
+    } 
+    catch (error) 
+    {
+        console.error(error);
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, "Internal Server Error")); // Send error response
+    }
 });
 
 

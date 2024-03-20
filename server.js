@@ -94,12 +94,19 @@ const menuSchema = new mongoose.Schema({
     items: [itemSchema]
 });
 
+// Schema for passwords
+const passwordsSchema = new mongoose.Schema({
+    username: String,
+    password: String
+});
+
 // Create models based on schemas
 const menuItemsModel = mongoose.model('menuItems', menuItemsSchema, 'menuItems'); // Model for menuItems
 const recipesModel = mongoose.model('recipes', recipesSchema); // Model for recipes
 const miscModel = mongoose.model('misc', miscSchema, 'misc'); // Model for misc
 const openingHoursModel = mongoose.model('openingHours', openingHoursSchema, 'openingHours'); // Model for openingHours
 const menuModel = mongoose.model('menu', menuSchema, 'menu'); // Model for menu
+const passwordsModel = mongoose.model('passwords', passwordsSchema, 'passwords'); // Model for passwords
 
 const HTTP_STATUS_CODE_OK = 200;
 const HTTP_STATUS_CODE_CREATED = 201;
@@ -205,10 +212,10 @@ app.get('/menu/:day', async (req, res) => {
                 menu.items = menu.items.filter(item => item.menuItemId);
             });
 
-        console.log(dailyMenu);
+            console.log(dailyMenu);
 
-        // Send the populated weeklyMenus array as a response to the client
-        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, dailyMenu));
+            // Send the populated weeklyMenus array as a response to the client
+            respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, dailyMenu));
         }
     } 
     catch (error) 
@@ -225,18 +232,38 @@ app.get('/menu/:day', async (req, res) => {
 // Route to add a new menu item to the menuItem collection
 app.post('/menu_items', async (req, res) => {
 
-    const result = createMenuItemObject(req.body, false);
-
-    // Return error if document not found
-    if(result[0] != HTTP_STATUS_CODE_OK)
+    if(await validatePassword(req.body.password))
     {
-        respondToClient(res, result);
+        const result = createMenuItemObject(req.body, false);
+
+        // Return error if document not found
+        if(result[0] != HTTP_STATUS_CODE_OK)
+        {
+            respondToClient(res, result);
+        }
+        else
+        {
+            newDocument = result[1];
+
+            respondToClient(res, await addDocumentToCollection(newDocument));
+        }
     }
     else
     {
-        newDocument = result[1];
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid Password"));
+    }
+});
 
-        respondToClient(res, await addDocumentToCollection(newDocument));
+// Route to delete a specific menuItem from the menuItems collection based on its object id
+app.post('/menu_items/:id/delete', async (req, res) => {
+
+    if(await validatePassword(req.body.password))
+    {
+        await deleteMenuItem(res, req);
+    }
+    else
+    {
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid Password"));
     }
 });
 
@@ -244,35 +271,51 @@ app.post('/menu_items', async (req, res) => {
 // multerUpload.single() uploads the file to the /uploads folder.
 app.post('/recipes', multerUpload.single('file'), async (req, res) => {
 
-    const file = req.file;
-    const id = file.filename.replace('.pdf', '');
-    // Extracting information from the request body - Req.Body contains the text fields, everything except file.
-    const { title, description, image, allergens } = req.body;
-
-    console.log(file);
-    console.log(title+ ", "+description+", "+image+", "+!file);
-
-    // Checks if the submitted data is valid
-    if(stringNotEmpty(title) && stringNotEmpty(description) && stringNotEmpty(image) && stringNotEmpty(allergens) && file != null)
+    if(await validatePassword(req.body.password))
     {
-        // Create a new recipe object
-        const newDocument = new recipesModel({
-            _id: new mongoose.Types.ObjectId(id),
-            title: title,
-            description: description,
-            image: image,
-            allergens: allergens
-        });
+        const file = req.file;
+        const id = file.filename.replace('.pdf', '');
+        // Extracting information from the request body - Req.Body contains the text fields, everything except file.
+        const { title, description, image, allergens } = req.body;
 
-        let responseForClient = await addDocumentToCollection(newDocument);
+        console.log(file);
+        console.log(title+ ", "+description+", "+image+", "+!file);
 
-        respondToClient(res, responseForClient);
+        // Checks if the submitted data is valid
+        if(stringNotEmpty(title) && stringNotEmpty(description) && stringNotEmpty(image) && stringNotEmpty(allergens) && file != null)
+        {
+            // Create a new recipe object
+            const newDocument = new recipesModel({
+                _id: new mongoose.Types.ObjectId(id),
+                title: title,
+                description: description,
+                image: image,
+                allergens: allergens
+            });
+
+            let responseForClient = await addDocumentToCollection(newDocument);
+
+            respondToClient(res, responseForClient);
+        }
+        else
+        {
+            // TODO: Provide more informative error messages
+            respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid entry"));
+        }
     }
     else
     {
-        // TODO: Provide more informative error messages
-        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid entry"));
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid Password"));
     }
+});
+
+// Route to check if password is valid and respond to the client with the result
+app.post('/login', async (req, res) => {
+    
+    const { password } = req.body;
+
+    // Password for testing: TestPassword
+    respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, await validatePassword(password))); // Returns true or false to the client
 });
 
 
@@ -281,162 +324,163 @@ app.post('/recipes', multerUpload.single('file'), async (req, res) => {
 // Route to update a specific menuItem from the menuItems collection based on its object id
 app.put('/menu_items/:id', async (req, res) => {
 
-    const result = createMenuItemObject(req.body, true);
-
-    // Return error if document not found
-    if(result[0] != HTTP_STATUS_CODE_OK)
+    if(await validatePassword(req.body.password))
     {
-        respondToClient(res, result);
+        const result = createMenuItemObject(req.body, true);
+
+        // Return error if document not found
+        if(result[0] != HTTP_STATUS_CODE_OK)
+        {
+            respondToClient(res, result);
+        }
+        else
+        {
+            newDocument = result[1];
+
+            respondToClient(res, await updateDocumentById(menuItemsModel, req.params.id, newDocument));
+        }
     }
     else
     {
-        newDocument = result[1];
-
-        respondToClient(res, await updateDocumentById(menuItemsModel, req.params.id, newDocument));
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid Password"));
     }
 });
 
 // Route to update the food pantry document in the misc collection
 app.put('/food_pantry', async (req, res) => {
 
-    // Extracting information from the request body
-    let newInformation = req.body.information;
-
-    // Check if the string from the request body are empty
-    if(stringNotEmpty(newInformation))
+    if(await validatePassword(req.body.password))
     {
-        let result = await findDocumentInCollection(miscModel, "documentName", foodPantryDocumentName); // Attempt to find the document in the misc collection
+        // Extracting information from the request body
+        let newInformation = req.body.information;
 
-        if(result[0] == HTTP_STATUS_CODE_OK) // If the document was found
+        // Check if the string from the request body are empty
+        if(stringNotEmpty(newInformation))
         {
-            // Update the document and send a response to the client
-            respondToClient(res, await updateSingleValueOfDocument(result[1], "information", newInformation));
+            let result = await findDocumentInCollection(miscModel, "documentName", foodPantryDocumentName); // Attempt to find the document in the misc collection
+
+            if(result[0] == HTTP_STATUS_CODE_OK) // If the document was found
+            {
+                // Update the document and send a response to the client
+                respondToClient(res, await updateSingleValueOfDocument(result[1], "information", newInformation));
+            }
+            else // If the document was not found
+            {
+                respondToClient(res, result); // Send error message as a response to the client
+            }
         }
-        else // If the document was not found
+        else
         {
-            respondToClient(res, result); // Send error message as a response to the client
+            respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Information can not be empty"));
         }
     }
     else
     {
-        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Information can not be empty"));
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid Password"));
     }
 });
 
 // Route to update the opening hours for a day in the opening hours collection
 app.put('/opening_hours', async (req, res) => {
 
-    // Extracting day, opening time, and closing time from the request body
-    const { day, openingTime, closingTime } = req.body;
-
-    // Check if any of the strings from the request body are empty
-    if(stringNotEmpty(day) && stringNotEmpty(openingTime) && stringNotEmpty(closingTime))
+    if(await validatePassword(req.body.password))
     {
-        let result = await findDocumentInCollection(openingHoursModel, "day", day); // Attempt to find the document in the openingHours collection
+        // Extracting day, opening time, and closing time from the request body
+        const { day, openingTime, closingTime } = req.body;
 
-        if(result[0] == HTTP_STATUS_CODE_OK) // If the document was found
+        // Check if any of the strings from the request body are empty
+        if(stringNotEmpty(day) && stringNotEmpty(openingTime) && stringNotEmpty(closingTime))
         {
-            let document = result[1];
-            openingTimeStatusCode = (await updateSingleValueOfDocument(document, "openingTime", openingTime))[0]; // Get status code of the result of updating the openingTime
-            closingTimeStatusCode = (await updateSingleValueOfDocument(document, "closingTime", closingTime))[0]; // Get status code of the result of updating the closingTime
+            let result = await findDocumentInCollection(openingHoursModel, "day", day); // Attempt to find the document in the openingHours collection
 
-            if(openingTimeStatusCode == HTTP_STATUS_CODE_OK && closingTimeStatusCode == HTTP_STATUS_CODE_OK) // Ensure that both the status codes are HTTP_STATUS_CODE_OK (both documents updated successfully)
+            if(result[0] == HTTP_STATUS_CODE_OK) // If the document was found
             {
-                respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, "Successfully updated opening time")); // Send success message as a response to the client
+                let document = result[1];
+                openingTimeStatusCode = (await updateSingleValueOfDocument(document, "openingTime", openingTime))[0]; // Get status code of the result of updating the openingTime
+                closingTimeStatusCode = (await updateSingleValueOfDocument(document, "closingTime", closingTime))[0]; // Get status code of the result of updating the closingTime
+
+                if(openingTimeStatusCode == HTTP_STATUS_CODE_OK && closingTimeStatusCode == HTTP_STATUS_CODE_OK) // Ensure that both the status codes are HTTP_STATUS_CODE_OK (both documents updated successfully)
+                {
+                    respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, "Successfully updated opening time")); // Send success message as a response to the client
+                }
+            }
+            else // If the document was not found
+            {
+                respondToClient(res, result); // Send error message as a response to the client
             }
         }
-        else // If the document was not found
+        else
         {
-            respondToClient(res, result); // Send error message as a response to the client
+            respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Information can not be empty"));
         }
     }
     else
     {
-        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Information can not be empty"));
-    }  
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid Password"));
+    }
 });
 
 // Route to add a menu item from the menuItems collection to a specific day in the menu collection
 app.put('/menu/:day/:menuItemId', async (req, res) => {
 
-    try 
+    if(await validatePassword(req.body.password))
     {
-        // Extracting day and menuItemId from the request parameters
-        const { day, menuItemId } = req.params;
-
-        // Attempt to find document with an _id of menuItemId in menuItems collection
-        const menuItems = await findDocumentInCollection(menuItemsModel, "_id", menuItemId);
-
-        // If menuItems was not found
-        if(menuItems[0] != HTTP_STATUS_CODE_OK)
+        try 
         {
-            return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_NOT_FOUND, "menuItemId does not exist"));
-        }
+            // Extracting day and menuItemId from the request parameters
+            const { day, menuItemId } = req.params;
 
-        const menu = await menuModel.findOne({ day }); // Find the menu document based on the day
+            // Attempt to find document with an _id of menuItemId in menuItems collection
+            const menuItems = await findDocumentInCollection(menuItemsModel, "_id", menuItemId);
 
-        // Check if the menu document exists
-        if (!menu) 
+            // If menuItems was not found
+            if(menuItems[0] != HTTP_STATUS_CODE_OK)
+            {
+                return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_NOT_FOUND, "menuItemId does not exist"));
+            }
+
+            const menu = await menuModel.findOne({ day }); // Find the menu document based on the day
+
+            // Check if the menu document exists
+            if (!menu) 
+            {
+                // Send a HTTP_STATUS_CODE_NOT_FOUND response if the document is not found
+                return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_NOT_FOUND, "Menu not found for the provided day"));
+            }
+
+            menu.items.push({ menuItemId }); // Add menuItemId to the items array
+
+            await menu.save(); // Save the updated menu document
+
+            respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, "Weekly menu updated successfully")); // Send success response
+        } 
+        catch (error) 
         {
-            // Send a HTTP_STATUS_CODE_NOT_FOUND response if the document is not found
-            return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_NOT_FOUND, "Menu not found for the provided day"));
+            console.error(error);
+            respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, "Internal Server Error")); // Send error response
         }
-
-        menu.items.push({ menuItemId }); // Add menuItemId to the items array
-
-        await menu.save(); // Save the updated menu document
-
-        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, "Weekly menu updated successfully")); // Send success response
-    } 
-    catch (error) 
+    }
+    else
     {
-        console.error(error);
-        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, "Internal Server Error")); // Send error response
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid Password"));
+    }
+});
+
+// Route to add a menu item from the menuItems collection to a specific day in the menu collection
+app.put('/menu/:day/:menuItemId/delete', async (req, res) => {
+
+    if(await validatePassword(req.body.password))
+    {
+        await removeMenuItemFromDay(res, req);
+    }
+    else
+    {
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid Password"));
     }
 });
 
 
 // DELETE Methods
-
-// Route to delete a specific menuItem from the menuItems collection based on its object id
-app.delete('/menu_items/:id', async (req, res) => {
-
-    respondToClient(res, await deleteDocumentById(menuItemsModel, req.params.id));
-});
-
-// Route to delete a menuItem from a specific day in the menus collection
-app.delete('/menu/:day/:menuItemId', async (req, res) => {
-
-    // Extracting day and menuItemId from the request parameters
-    const { day, menuItemId } = req.params;
-
-    try 
-    {
-        // Find the menu for the given day
-        const menu = await menuModel.findOne({ day });
-
-        if (!menu) 
-        {
-            // Send a HTTP_STATUS_CODE_NOT_FOUND response if the document is not found
-            return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_NOT_FOUND, "Menu not found for the provided day"));
-        }
-
-        // Filter out the item with the given menuItemId
-        menu.items = menu.items.filter(item => {
-            return item.menuItemId.toString() !== menuItemId.toString();
-        });
-
-        // Save the updated document
-        await menu.save();
-
-        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, "Weekly menu updated successfully")); // Send success response
-    } 
-    catch (error) 
-    {
-        console.error(error);
-        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, "Internal Server Error")); // Send error response
-    }
-});
 
 
 // Other Methods
@@ -648,6 +692,59 @@ function createMenuItemObject(requestBody, edit)
     {
         // TODO: Provide more informative error messages
         return createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Invalid entry");
+    }
+}
+
+// Check if the given password is correct (Password for testing: TestPassword)
+async function validatePassword(password)
+{
+    let result = await findDocumentInCollection(passwordsModel, "password", password); // Attempt to find the document with the given password
+
+    if(result[0] == HTTP_STATUS_CODE_OK)
+    {
+        return true; // If password was found
+    }
+    
+    return false; // If password was not found
+}
+
+// Function to delete a specific menuItem from the menuItems collection based on its object id
+async function deleteMenuItem(res, req)
+{
+    respondToClient(res, await deleteDocumentById(menuItemsModel, req.params.id));
+}
+
+// Function to delete a menuItem from a specific day in the menus collection
+async function removeMenuItemFromDay(res, req)
+{
+    // Extracting day and menuItemId from the request parameters
+    const { day, menuItemId } = req.params;
+
+    try 
+    {
+        // Find the menu for the given day
+        const menu = await menuModel.findOne({ day });
+
+        if (!menu) 
+        {
+            // Send a HTTP_STATUS_CODE_NOT_FOUND response if the document is not found
+            return respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_NOT_FOUND, "Menu not found for the provided day"));
+        }
+
+        // Filter out the item with the given menuItemId
+        menu.items = menu.items.filter(item => {
+            return item.menuItemId.toString() !== menuItemId.toString();
+        });
+
+        // Save the updated document
+        await menu.save();
+
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_OK, "Weekly menu updated successfully")); // Send success response
+    } 
+    catch (error) 
+    {
+        console.error(error);
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, "Internal Server Error")); // Send error response
     }
 }
 

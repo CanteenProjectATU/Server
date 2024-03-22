@@ -276,20 +276,16 @@ app.post('/recipes', multerUpload.single('file'), async (req, res) => {
         const file = req.file;
         const id = file.filename.replace('.pdf', '');
         // Extracting information from the request body - Req.Body contains the text fields, everything except file.
-        const { title, description, image, allergens } = req.body;
-
-        console.log(file);
-        console.log(title+ ", "+description+", "+image+", "+!file);
+        const { title, description, allergens } = req.body;
 
         // Checks if the submitted data is valid
-        if(stringNotEmpty(title) && stringNotEmpty(description) && stringNotEmpty(image) && stringNotEmpty(allergens) && file != null)
+        if(stringNotEmpty(title) && stringNotEmpty(description)  && stringNotEmpty(allergens) && file != null)
         {
             // Create a new recipe object
             const newDocument = new recipesModel({
                 _id: new mongoose.Types.ObjectId(id),
                 title: title,
                 description: description,
-                image: image,
                 allergens: allergens
             });
 

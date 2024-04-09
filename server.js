@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 var fs = require('fs');
 var path = require('path');
 const multer = require('multer');
@@ -98,7 +99,7 @@ const menuSchema = new mongoose.Schema({
 // Schema for passwords
 const passwordsSchema = new mongoose.Schema({
     username: String,
-    password: String
+    hashedPassword: String
 });
 
 // Create models based on schemas
@@ -283,7 +284,7 @@ app.post('/recipes', verifyToken, multerUpload.single('file'), async (req, res) 
 });
 
 
-// Endpoint for user login
+// Route for user login
 app.post('/login', async (req, res) => 
 {
     // Extract username and password from request body
@@ -292,19 +293,8 @@ app.post('/login', async (req, res) =>
     // Validate if both username and password are provided
     if (username && password) 
     {
-        // Attempt to find a user with the provided username and password combination
-        const user = await passwordsModel.findOne({ username, password });
-
-        if (user) // If a user is found with the provided credentials
-        {
-            const token = await generateToken(user); // Generate a JWT token for the authenticated user
-
-            res.json({ token }); // Respond with the generated token
-        } else 
-        {
-            // If no user is found with the provided credentials, respond with a 401 Unauthorized status and a message indicating invalid username or password
-            respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_UNAUTHORIZED, "Invalid username or password"));
-        }
+        // Return the result of the login attempt to the client (token if successful, error message if not successful)
+        respondToClient(res, await manageLogin(username, password));
     } 
     else 
     {
@@ -757,6 +747,71 @@ async function getTokenKey()
     const result = await findDocumentInCollection(miscModel, "documentName", "TokenKey");
 
     return result[1].information; // Return the token key
+}
+
+// Return hashed version of given plaintext password
+async function hashPassword(password) 
+{
+    try 
+    {
+        // Generate a salt
+        const salt = await bcrypt.genSalt(10);
+
+        // Hash the password along with the salt
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        return hashedPassword;
+    } 
+    catch (error) 
+    {
+        throw new Error('Error hashing password');
+    }
+}
+
+// Compare plaintext password with hashed password
+async function comparePasswords(plainTextPassword, hashedPassword) 
+{
+    try 
+    {
+        // Compare the provided password with the hashed password from the database
+        const match = await bcrypt.compare(plainTextPassword, hashedPassword);
+
+        // Return match if the passwords matched
+        if(match)
+        {
+            return createResponseForClient(HTTP_STATUS_CODE_OK, match);
+        }
+
+        return createResponseForClient(HTTP_STATUS_CODE_UNAUTHORIZED, "Invalid username or password"); // Return invalid message if passwords did not match
+    } 
+    catch (error) 
+    {
+        return createResponseForClient(HTTP_STATUS_CODE_UNAUTHORIZED, "Invalid username or password");
+    }
+}
+
+// Function to manage a user logging in
+async function manageLogin(username, password)
+{
+    // Attempt to find a user with the provided username and password combination
+    const userSearchResult = await findDocumentInCollection(passwordsModel, "username", username);
+
+    if (userSearchResult[0] == HTTP_STATUS_CODE_OK) // If a user is found with the provided credentials
+    {
+        user = userSearchResult[1]; // Set the user to the user document from the database
+        const hashedPassword = user.hashedPassword; // Set the hashedPassword to the hashedPassword in the user document
+        const match = await comparePasswords(password, hashedPassword); // Compare the password and the hashedPassword
+
+        if(match[0] == HTTP_STATUS_CODE_OK) // If the password and the hashedPassword matched
+        {
+            const token = await generateToken(user); // Generate a JWT token for the authenticated user
+
+            return createResponseForClient(HTTP_STATUS_CODE_OK, token); // Return the generated token
+        }
+    }
+
+    // If no user is found with the provided credentials, or the password is incorrect, create a response with a 401 Unauthorized status and a message indicating invalid username or password
+    return createResponseForClient(HTTP_STATUS_CODE_UNAUTHORIZED, "Invalid username or password");
 }
 
 

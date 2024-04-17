@@ -424,6 +424,64 @@ app.put('/menu/:day/:menuItemId', verifyToken, async (req, res) => {
     }
 });
 
+// Route for updating user's password
+app.put('/update_password', verifyToken, async (req, res) => {
+
+    // Extract username, old password, and new password from request body
+    const { username, oldPassword, newPassword } = req.body;
+
+    // Validate if all required fields are provided
+    if (username && oldPassword && newPassword) 
+    {
+        try 
+        {
+            // Find the user based on the username
+            const userSearchResult = await findDocumentInCollection(passwordsModel, "username", username);
+
+            if (userSearchResult[0] == HTTP_STATUS_CODE_OK) 
+            {
+                // If user found, compare old password with the hashed password in the database
+                const user = userSearchResult[1];
+                const hashedPassword = user.hashedPassword;
+
+                // Compare old password with hashed password
+                const match = await comparePasswords(oldPassword, hashedPassword);
+
+                if (match[0] == HTTP_STATUS_CODE_OK) 
+                {
+                    // If old password matches, hash the new password
+                    const newHashedPassword = await hashPassword(newPassword);
+
+                    // Update the user's password in the database and send response indicating success or failure
+                    respondToClient(res, await updateSingleValueOfDocument(user, "hashedPassword", newHashedPassword));
+                } 
+                else 
+                {
+                    // If old password doesn't match, respond with an error message
+                    respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_UNAUTHORIZED, "Old password is incorrect"));
+                }
+            } 
+            else 
+            {
+                // If user not found, respond with an error message
+                respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_NOT_FOUND, "User not found"));
+            }
+        } 
+        catch (error) 
+        {
+            // Handle any potential errors and respond with an error message
+            console.error(error);
+            respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_INTERNAL_SERVER_ERROR, "Internal Server Error"));
+        }
+    } 
+    else 
+    {
+        // If any required field is missing, respond with an error message
+        respondToClient(res, createResponseForClient(HTTP_STATUS_CODE_BAD_REQUEST, "Old password and new password are required"));
+    }
+});
+
+
 
 // DELETE Methods
 
